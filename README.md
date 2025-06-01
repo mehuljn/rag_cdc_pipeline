@@ -2,6 +2,12 @@
 
 This project presents a robust and dynamic Retrieval Augmented Generation (RAG) pipeline designed to provide real-time, AI-powered answers based on a continuously updated knowledge base. It showcases a powerful integration of MySQL's Change Data Capture (CDC) via Debezium and Kafka to maintain a fresh vector store in ChromaDB, which then leverages Google's cutting-edge Gemini AI API for both intelligent embeddings and generative responses. An interactive Streamlit frontend allows users to easily query the system and see the RAG capabilities in action.
 
+
+
+https://github.com/user-attachments/assets/9000b27c-0173-4f02-8605-accef7fcf7fc
+
+
+
 ![RAG CDC Pipeline](https://github.com/mehuljn/rag_cdc_pipeline/blob/main/rag_cdc_pipeline.jpg?raw=true)
 
 ---
