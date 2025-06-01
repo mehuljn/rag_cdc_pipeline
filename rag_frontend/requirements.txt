@@ -1,0 +1,6 @@
+# rag_frontend/requirements.txt
+streamlit
+chromadb
+mysql-connector-python
+pysqlite3-binary
+google-generativeai

@@ -1,0 +1,5 @@
+# rag_processor/requirements.txt
+kafka-python
+chromadb
+google-generativeai
+pysqlite3-binary

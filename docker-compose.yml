@@ -1,0 +1,153 @@
+# docker-compose.yml
+# Removed 'version: "3.8"' as it's obsolete and can cause warnings.
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093" # For internal communication
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  mysql:
+    image: mysql:8.0
+    hostname: mysql
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password # Change this for production!
+      MYSQL_DATABASE: rag_db
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql # Persistent data volume
+    command: --server-id=1 --log-bin=mysql-bin --binlog-format=ROW # Enable binlog for Debezium
+
+  debezium:
+    image: debezium/connect:2.4
+    hostname: debezium
+    container_name: debezium
+    ports:
+      - "8083:8083" # Debezium Connect REST API
+    depends_on:
+      - kafka
+      - mysql
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      # Set up internal topics with replication factor 1 for single node setup
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+  debezium_connector_configurator:
+    image: alpine/curl:latest # Changed from curlimp/curl to alpine/curl
+    container_name: debezium_connector_configurator
+    depends_on:
+      - debezium
+    command: >
+      sh -c "
+        echo 'Waiting for Debezium Connect to start...';
+        while ! curl -s debezium:8083/connectors; do
+          sleep 5;
+        done;
+        echo 'Debezium Connect is up. Registering MySQL connector...';
+        curl -X POST -H 'Content-Type: application/json' --data @- http://debezium:8083/connectors << EOF
+        {
+          \"name\": \"mysql-connector\",
+          \"config\": {
+            \"connector.class\": \"io.debezium.connector.mysql.MySqlConnector\",
+            \"tasks.max\": \"1\",
+            \"database.hostname\": \"mysql\",
+            \"database.port\": \"3306\",
+            \"database.user\": \"root\",
+            \"database.password\": \"root_password\",
+            \"database.server.id\": \"12345\",
+            \"database.server.name\": \"mysql_server\",
+            \"database.include.list\": \"rag_db\",
+            \"table.include.list\": \"rag_db.documents\",
+            \"snapshot.mode\": \"initial\",
+            \"topic.prefix\": \"mysql_server\",
+            \"schema.history.internal.kafka.bootstrap.servers\": \"kafka:9092\",
+            \"schema.history.internal.kafka.topic\": \"schema_history_rag_db\"
+          }
+        }
+        EOF
+        echo 'MySQL connector registration attempt complete.';
+      "
+    restart: on-failure # Ensure it retries if Debezium isn't ready immediately
+
+  chromadb:
+    image: chromadb/chroma:latest
+    hostname: chromadb
+    container_name: chromadb
+    ports:
+      - "8000:8000" # Default ChromaDB port
+    volumes:
+      - chromadb_data:/chroma/chroma # Persistent data volume
+
+  rag_processor:
+    build: ./rag_processor
+    hostname: rag_processor
+    container_name: rag_processor
+    depends_on:
+      - kafka
+      - chromadb
+      - debezium_connector_configurator # Ensure connector is registered before starting
+    environment:
+      # These ENV vars are passed to the Dockerfile and then to app.py
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CHROMADB_HOST: chromadb
+      CHROMADB_PORT: 8000
+      GEMINI_API_KEY: ${GEMINI_API_KEY} # Pass from host environment or hardcode in Dockerfile
+    # If you want to test the RAG query directly from the container, uncomment the next line
+    # command: bash -c "python app.py && tail -f /dev/null" # Keep container running for manual interaction
+    restart: on-failure
+
+  rag_frontend: # NEW SERVICE
+    build: ./rag_frontend
+    hostname: rag_frontend
+    container_name: rag_frontend
+    ports:
+      - "8501:8501" # Streamlit default port
+    depends_on:
+      - mysql # Frontend needs to connect to MySQL
+      - chromadb # Frontend needs to connect to ChromaDB
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root_password
+      MYSQL_DATABASE: rag_db
+      CHROMADB_HOST: chromadb
+      CHROMADB_PORT: 8000
+    restart: on-failure
+
+volumes:
+  mysql_data:
+  chromadb_data:
