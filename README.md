@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/9000b27c-0173-4f02-8605-accef7fcf7fc
 ## ✨ Features
 
 * **Real-time Knowledge Base:** Automatically updates the ChromaDB vector store with changes detected in the MySQL database using **Debezium** for Change Data Capture (CDC) and **Kafka** for streaming events.
-* **Gemini AI Powered:** Utilizes the **Google Gemini AI API** (`embedding-001` model) for generating state-of-the-art semantic embeddings for documents and queries. It also uses the `gemini-pro` generative model to synthesize natural language answers from retrieved context.
+* **Gemini AI Powered:** Utilizes the **Google Gemini AI API** (`embedding-001` model) for generating state-of-the-art semantic embeddings for documents and queries. It also uses the `gemini-2.0-flash` generative model to synthesize natural language answers from retrieved context.
 * **Retrieval Augmented Generation (RAG):** Combines efficient information retrieval from a vector database with a large language model (LLM) to provide accurate, context-aware, and up-to-date responses.
 * **Interactive Web Frontend:** A user-friendly **Streamlit** application provides an intuitive interface to view current documents in MySQL, add new data (triggering CDC), and query the RAG system interactively.
 * **Modular & Containerized:** The entire pipeline is orchestrated using **Docker Compose**, with each component running as a separate service for scalability, isolation, and easy deployment.
@@ -52,7 +52,7 @@ The pipeline operates in a continuous loop:
 * **CDC Platform:** Debezium Connect 2.4
 * **Message Broker:** Apache Kafka 7.4.0 (via Confluent Platform)
 * **Vector Database:** ChromaDB 0.5.0
-* **AI Models:** Google Gemini AI API (`embedding-001`, `gemini-pro`)
+* **AI Models:** Google Gemini AI API (`embedding-001`, `gemini-2.0-flash`)
 * **Programming Language:** Python 3.10
 * **Web Framework:** Streamlit 1.22.0
 * **Containerization:** Docker & Docker Compose
@@ -129,7 +129,7 @@ Once all services are up and running, you can interact with the RAG pipeline thr
     The application will:
     * Embed your query using **Gemini AI**.
     * Search ChromaDB for the most relevant document chunks.
-    * Pass these retrieved chunks as context to the **Gemini Pro** generative model.
+    * Pass these retrieved chunks as context to the **Gemini-2.0-flash** generative model.
     * Display the AI-generated answer.
     * Show the source documents that were used to formulate the answer.
 
